@@ -87,7 +87,7 @@ const keys: Keys = {
   },
 };
 let lastKey: string = "";
-const playerVelocity = 2.5;
+const playerVelocity = 5;
 let score = 10;
 
 class Boundary {
@@ -154,6 +154,45 @@ class Player {
     this.position.y += this.velocity.y;
   }
 }
+class Ghost {
+  position: Position;
+  velocity: Velocity;
+  radius: number;
+  color: string;
+  prevCollisions: string[]
+
+  constructor({
+    position,
+    velocity,
+    radius,
+    color
+  }: {
+    position: Position;
+    velocity: Velocity;
+    radius: number;
+    color: string
+  }) {
+    this.position = position;
+    this.velocity = velocity;
+    this.radius = radius;
+    this.color = color;
+    this.prevCollisions = [];
+  }
+
+  draw() {
+    ctx!.beginPath();
+    ctx!.arc(this.position.x, this.position.y, this.radius, 0, Math.PI * 2);
+    ctx!.fillStyle = this.color;
+    ctx!.fill();
+    ctx!.closePath();
+  }
+
+  update() {
+    this.draw();
+    this.position.x += this.velocity.x;
+    this.position.y += this.velocity.y;
+  }
+}
 
 class Pellets {
   position: Position;
@@ -178,6 +217,22 @@ const player = new Player({
   velocity: { x: 0, y: 0 },
   radius: 15,
 });
+
+const ghosts = [
+  new Ghost(
+    {
+      position: {
+        x: Boundary.width * 6.5,
+        y: Boundary.height * 1.5
+      },
+      velocity: {
+        x: playerVelocity, y: 0
+      },
+      radius: 15,
+      color: 'red'
+    }
+  )
+]
 
 // creating boundary object
 map?.forEach((row, i) => {
@@ -358,15 +413,17 @@ map?.forEach((row, i) => {
 });
 
 const circleCollidesWithRectangle = ({ circle, rectangle }: any) => {
+  const padding = Boundary.width / 2 - circle.radius - 1;
+
   return (
     circle.position.y - circle.radius + circle.velocity.y <=
-      rectangle.position.y + rectangle.height &&
+      rectangle.position.y + rectangle.height + padding &&
     circle.position.x + circle.radius + circle.velocity.x >=
-      rectangle.position.x &&
+      rectangle.position.x - padding &&
     circle.position.y + circle.radius + circle.velocity.y >=
-      rectangle.position.y &&
+      rectangle.position.y - padding &&
     circle.position.x - circle.radius + circle.velocity.x <=
-      rectangle.position.x + rectangle.width
+      rectangle.position.x + rectangle.width + padding
   );
 };
 
@@ -503,6 +560,133 @@ function animate() {
 
   // drawing and update player
   player.update();
+
+  // drawing ghost
+  ghosts?.forEach((ghost) => {
+    ghost?.update();
+
+    let collisions: string[] = [];
+
+    // detecting collision between ghost and boundries
+    boundaries?.forEach((boundary) => {
+      if (
+        !collisions?.includes('right') &&
+        circleCollidesWithRectangle({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: playerVelocity,
+              y: 0,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions?.push('right');
+      }
+      if (
+        !collisions?.includes('left') &&
+        circleCollidesWithRectangle({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: -playerVelocity,
+              y: 0,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions?.push('left');
+      }
+      if (
+        !collisions?.includes('up') &&
+        circleCollidesWithRectangle({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: 0,
+              y: -playerVelocity,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions?.push('up');
+      }
+      if (
+        !collisions?.includes('down') &&
+        circleCollidesWithRectangle({
+          circle: {
+            ...ghost,
+            velocity: {
+              x: 0,
+              y: playerVelocity,
+            },
+          },
+          rectangle: boundary,
+        })
+      ) {
+        collisions?.push('down');
+      }
+
+      console.log('here is : ', collisions);
+      
+
+      console.log("this is cur and prev", collisions.length, ghost.prevCollisions.length);
+      if (collisions.length > ghost.prevCollisions.length) {
+        ghost.prevCollisions = collisions;
+      }
+      console.log("this is cur and prev", collisions.length, ghost.prevCollisions.length);
+
+
+      // because two arrays are never gonna different
+      // we've to stringify this
+      if (JSON.stringify(collisions) !== JSON.stringify(ghost.prevCollisions)) {
+        
+        if (ghost.velocity.x > 0 ) {
+          ghost.prevCollisions.push('right')
+        } else if (ghost.velocity.x < 0 ) {
+          ghost.prevCollisions.push('left')
+        } else if (ghost.velocity.y > 0 ) {
+          ghost.prevCollisions.push('down')
+        } else if (ghost.velocity.y < 0 ) {
+          ghost.prevCollisions.push('up')
+        }
+
+        const pathways = ghost.prevCollisions.filter((collision) => {
+          console.log(collisions, collision, collisions.includes(collision));
+          return !collisions.includes(collision)
+          
+        })
+        console.log(pathways);
+        
+        const direction = pathways[Math.floor(Math.random() * pathways.length)];
+        
+
+        switch (direction) {
+          case 'down':
+            ghost.velocity.y = playerVelocity;
+            ghost.velocity.x = 0;
+            break;
+          case 'up':
+            ghost.velocity.y = -playerVelocity;
+            ghost.velocity.x = 0;
+            break;
+          case 'left':
+            ghost.velocity.y = 0;
+            ghost.velocity.x = -playerVelocity;
+            break;
+          case 'right':
+            ghost.velocity.y = 0;
+            ghost.velocity.x = playerVelocity;
+            break;
+        }
+
+        ghost.prevCollisions = [];
+      }
+    })
+  })
 }
 
 animate();
